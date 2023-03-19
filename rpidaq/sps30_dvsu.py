@@ -27,7 +27,7 @@ SOFTWARE.
 import sys
 import json
 from time import sleep
-from sps30.sps30 import SPS30
+from sps30_dvsu.sps30 import SPS30
 
 
 if __name__ == "__main__":
