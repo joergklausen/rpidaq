@@ -80,11 +80,11 @@ class SCD30:
         self.i2c = I2C(bus, address)
         self.crc = CRC()
         self.__data = Queue(maxsize=20)
-        # self.__valid = {
-        #     "CO2": False,
-        #     "T": False,
-        #     "RH": False
-        # }
+        self.__valid = {
+            "CO2": False,
+            "T": False,
+            "RH": False
+        }
 
     # def crc_calc(self, data: list) -> int:
     #     crc = 0xFF
@@ -231,7 +231,9 @@ class SCD30:
         }
 
         data = CMD_START_MEASUREMENT
-        data.extend([data_format["IEEE754_float"], 0x00])
+        pressure = 0 #960
+        data.extend(pressure.to_bytes(2, 'big'))
+#         data.extend([data_format["IEEE754_float"], 0x00])
         data.append(self.crc.calc(data[2:4]))
         self.i2c.write(data)
         sleep(0.05)
@@ -272,14 +274,19 @@ class SCD30:
         else:
             return round((((-1)**(sign) * real) + dec) / pow(2, divider), 3)
 
-    def CO2_measurement(self, data: list) -> int:
-        category = ["MMSB", "MLSB", "LMSB", "MMSB"]
+    def __CO2_measurement(self, data: list) -> int:
+#         category = ["MMSB", "MLSB", "LMSB", "LLSB"]
+# 
+#         co2_conc = {
+#             "MMSB": 0.0,
+#             "MLSB": 0.0,
+#             "LMSB": 0.0,
+#             "LLSB": 0.0
+#         }
+        category = ["CO2"]
 
-        co2 = {
-            "MMSB": 0.0,
-            "MLSB": 0.0,
-            "LMSB": 0.0,
-            "MMSB": 0.0
+        co2_conc = {
+            "CO2": 0.0
         }
 
         for block, (co2) in enumerate(category):
@@ -304,21 +311,56 @@ class SCD30:
 
                 co2_data.extend(data[offset:offset+2])
 
-            co2[co2] = self.__ieee754_number_conversion(
+            co2_conc[co2] = self.__ieee754_number_conversion(
                 co2_data[0] << 24 | co2_data[1] << 16 | co2_data[2] << 8 | co2_data[3])
 
         self.__valid["CO2"] = True
 
-        return co2
+        return co2_conc
+
+    def __measurement(self, data: list) -> int:
+        category = ["CO2", "T", "RH"]
+
+        reading = {
+            "CO2": 0.0,
+            "T": 0.0,
+            "RH": 0.0
+        }
+
+        for block, (x) in enumerate(category):
+            measured_data = []
+            for i in range(0, SIZE_FLOAT, PACKET_SIZE):
+                offset = (block * SIZE_FLOAT) + i
+                if self.crc.calc(data[offset:offset+2]) != data[offset+2]:
+                    if self.logger:
+                        self.logger.warning(
+                            "'__CO2_measurement' CRC mismatched!" +
+                            f"  Data: {data[offset:offset+2]}" +
+                            f"  Calculated CRC: {self.crc.calc(data[offset:offset+2])}" +
+                            f"  Expected: {data[offset+2]}")
+                    else:
+                        print(
+                            "'__CO2_measurement' CRC mismatched!" +
+                            f"  Data: {data[offset:offset+2]}" +
+                            f"  Calculated CRC: {self.crc.calc(data[offset:offset+2])}" +
+                            f"  Expected: {data[offset+2]}")
+                    self.__valid["CO2"] = False
+                    return {}
+
+                measured_data.extend(data[offset:offset+2])
+
+            reading[x] = self.__ieee754_number_conversion(
+                measured_data[0] << 24 | measured_data[1] << 16 | measured_data[2] << 8 | measured_data[3])
+
+        self.__valid["CO2"] = True
+
+        return reading
 
     def __T_measurement(self, data: list) -> dict:
-        category = ["MMSB", "MLSB", "LMSB", "MMSB"]
+        category = ["T"]
 
-        temp = {
-            "MMSB": 0.0,
-            "MLSB": 0.0,
-            "LMSB": 0.0,
-            "MMSB": 0.0
+        temp_value = {
+            "T": 0.0
         }
 
         for block, (temp) in enumerate(category):
@@ -344,21 +386,18 @@ class SCD30:
 
                 t_data.extend(data[offset:offset+2])
 
-            temp[temp] = self.__ieee754_number_conversion(
+            temp_value[temp] = self.__ieee754_number_conversion(
                 t_data[0] << 24 | t_data[1] << 16 | t_data[2] << 8 | t_data[3])
 
         self.__valid["T"] = True
 
-        return temp
+        return temp_value
 
     def __RH_measurement(self, data: list) -> dict:
-        category = ["MMSB", "MLSB", "LMSB", "MMSB"]
+        category = ["RH"]
 
-        rh = {
-            "MMSB": 0.0,
-            "MLSB": 0.0,
-            "LMSB": 0.0,
-            "MMSB": 0.0
+        rh_value = {
+            "RH": 0.0
         }
 
         for block, (rh) in enumerate(category):
@@ -384,12 +423,12 @@ class SCD30:
 
                 rh_data.extend(data[offset:offset+2])
 
-            rh[rh] = self.__ieee754_number_conversion(
+            rh_value[rh] = self.__ieee754_number_conversion(
                 rh_data[0] << 24 | rh_data[1] << 16 | rh_data[2] << 8 | rh_data[3])
 
         self.__valid["RH"] = True
 
-        return rh
+        return rh_value
 
     # def __particle_size_measurement(self, data: list) -> float:
     #     size = []
@@ -425,21 +464,37 @@ class SCD30:
 
                 self.i2c.write(CMD_GET_MEASURED_VALUES)
                 data = self.i2c.read(NBYTES_MEASURED_VALUES_FLOAT)
-
+                print(data)
+                
                 if self.__data.full():
                     self.__data.get()
 
-                result = {
-                    "sensor_data": {
-                        "CO2": self.__CO2_measurement(data[:6]),
-                        "T": self.__T_measurement(data[6:12]),
-                        "RH": self.__RH_measurement(data[13:]),
-                        "CO2_unit": "ppm",
-                        "T_unit": "°C",
-                        "RH_unit": "%"
-                    },
-                    "timestamp": int(datetime.now().timestamp())
-                }
+#                 co2_result = self.__CO2_measurement(data[:6])
+#                 print(co2_result)
+# 
+#                 result = {
+#                     "sensor_data": {
+#                         "CO2": self.__CO2_measurement(data[:6]),
+#                         "T": self.__T_measurement(data[6:12]),
+#                         "RH": self.__RH_measurement(data[13:]),
+#                         "CO2_unit": "ppm",
+#                         "T_unit": "°C",
+#                         "RH_unit": "%"
+#                     },
+                co2_result = self.__measurement(data)
+                print(co2_result)
+
+#                 result = {
+#                     "sensor_data": {
+#                         "CO2": self.__CO2_measurement(data[:6]),
+#                         "T": self.__T_measurement(data[6:12]),
+#                         "RH": self.__RH_measurement(data[13:]),
+#                         "CO2_unit": "ppm",
+#                         "T_unit": "°C",
+#                         "RH_unit": "%"
+#                     },
+#                     "timestamp": int(datetime.now().timestamp())
+#                 }
 
                 self.__data.put(result if all(self.__valid.values()) else {})
 
@@ -462,5 +517,6 @@ class SCD30:
                 sleep(self.sampling_period)
 
     def __run(self) -> None:
-        threading.Thread(target=self.__get_measured_value,
-                         daemon=True).start()
+        self.__get_measured_value()
+#         threading.Thread(target=self.__get_measured_value,
+#                          daemon=True).start()

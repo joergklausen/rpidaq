@@ -31,9 +31,14 @@ from scd30.scd30 import SCD30
 
 
 if __name__ == "__main__":
-    c02_sensor = SPS30()
-    print(f"Serial number: {c02_sensor.get_serial_number()}")
-    print(f"Status register: {c02_sensor.get_status_register()}")
+    c02_sensor = SCD30()
+    print(f"SCD30 firmware version: {c02_sensor.get_firmware_version()}")
+#     c02_sensor.stop_measurement()
+#     sleep(5)
+#     c02_sensor.reset()
+#     sleep(5)
+#     print(f"SCD30 firmware version: {c02_sensor.get_firmware_version()}")
+#     sleep(5)
     c02_sensor.start_measurement()
     sleep(5)
     

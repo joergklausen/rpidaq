@@ -2,7 +2,7 @@ class CRC:
     def __init__(self):
         return
 
-    def calc(data: list) -> int:
+    def calc(self, data: list) -> int:
         crc = 0xFF
         for i in range(2):
             crc ^= data[i]
