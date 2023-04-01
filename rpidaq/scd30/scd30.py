@@ -86,20 +86,6 @@ class SCD30:
             "RH": False
         }
 
-    # def crc_calc(self, data: list) -> int:
-    #     crc = 0xFF
-    #     for i in range(2):
-    #         crc ^= data[i]
-    #         for _ in range(8, 0, -1):
-    #             if crc & 0x80:
-    #                 crc = (crc << 1) ^ 0x31
-    #             else:
-    #                 crc = crc << 1
-
-    #     # The checksum only contains 8-bit,
-    #     # so the calculated value has to be masked with 0xFF
-    #     return (crc & 0x0000FF)
-
     def get_firmware_version(self) -> str:
         self.i2c.write(CMD_GET_FIRMWARE_VERSION)
         data = self.i2c.read(NBYTES_GET_FIRMWARE_VERSION)
@@ -108,58 +94,6 @@ class SCD30:
             return "CRC mismatched"
 
         return ".".join(map(str, data[:2]))
-
-    # def get_product_type(self) -> str:
-    #     self.i2c.write(CMD_GET_PRODUCT_TYPE)
-    #     data = self.i2c.read(NBYTES_GET_PRODUCT_TYPE)
-    #     result = ""
-
-    #     for i in range(0, NBYTES_GET_PRODUCT_TYPE, 3):
-    #         if self.crc.calc(data[i:i+2]) != data[i+2]:
-    #             return "CRC mismatched"
-
-    #         result += "".join(map(chr, data[i:i+2]))
-
-    #     return result
-
-    # def get_serial_number(self) -> str:
-    #     self.i2c.write(CMD_GET_SERIAL_NUMBER)
-    #     data = self.i2c.read(NBYTES_GET_SERIAL_NUMBER)
-    #     result = ""
-
-    #     for i in range(0, NBYTES_GET_SERIAL_NUMBER, PACKET_SIZE):
-    #         if self.crc.calc(data[i:i+2]) != data[i+2]:
-    #             return "CRC mismatched"
-
-    #         result += "".join(map(chr, data[i:i+2]))
-
-    #     return result
-
-    # def get_status_register(self) -> dict:
-    #     self.i2c.write(CMD_GET_STATUS_REGISTER)
-    #     data = self.i2c.read(NBYTES_GET_STATUS_REGISTER)
-
-    #     status = []
-    #     for i in range(0, NBYTES_GET_STATUS_REGISTER, PACKET_SIZE):
-    #         if self.crc.calc(data[i:i+2]) != data[i+2]:
-    #             return "CRC mismatched"
-
-    #         status.extend(data[i:i+2])
-
-    #     binary = '{:032b}'.format(
-    #         status[0] << 24 | status[1] << 16 | status[2] << 8 | status[3])
-    #     speed_status = "too high/ too low" if int(binary[10]) == 1 else "ok"
-    #     laser_status = "out of range" if int(binary[26]) == 1 else "ok"
-    #     fan_status = "0 rpm" if int(binary[27]) == 1 else "ok"
-
-    #     return {
-    #         "speed_status": speed_status,
-    #         "laser_status": laser_status,
-    #         "fan_status": fan_status
-    #     }
-
-    # def clear_status_register(self) -> None:
-    #     self.i2c.write(CMD_CLEAR_STATUS_REGISTER)
 
     def get_data_ready_flag(self) -> bool:
         self.i2c.write(CMD_GET_DATA_READY_FLAG)
@@ -183,44 +117,6 @@ class SCD30:
 
         return True if data[1] == 1 else False
 
-    # def sleep(self) -> None:
-    #     self.i2c.write(CMD_SLEEP)
-
-    # def wakeup(self) -> None:
-    #     self.i2c.write(CMD_WAKEUP)
-
-    # def start_fan_cleaning(self) -> None:
-    #     self.i2c.write(CMD_START_FAN_CLEANING)
-
-    # def get_auto_cleaning_interval(self) -> int:
-    #     self.i2c.write(CMD_GET_AUTO_CLEANING_INTERVAL)
-    #     data = self.i2c.read(NBYTES_GET_AUTO_CLEANING_INTERVAL)
-
-    #     interval = []
-    #     for i in range(0, NBYTES_GET_AUTO_CLEANING_INTERVAL, 3):
-    #         if self.crc.calc(data[i:i+2]) != data[i+2]:
-    #             return "CRC mismatched"
-
-    #         interval.extend(data[i:i+2])
-
-    #     return (interval[0] << 24 | interval[1] << 16 | interval[2] << 8 | interval[3])
-
-    # def set_auto_cleaning_interval(self, days: int) -> int:
-    #     seconds = days * 86400  # 1day = 86400sec
-    #     interval = []
-    #     interval.append((seconds & 0xff000000) >> 24)
-    #     interval.append((seconds & 0x00ff0000) >> 16)
-    #     interval.append((seconds & 0x0000ff00) >> 8)
-    #     interval.append(seconds & 0x000000ff)
-    #     data = CMD_GET_AUTO_CLEANING_INTERVAL
-    #     data.extend([interval[0], interval[1]])
-    #     data.append(self.crc.calc(data[2:4]))
-    #     data.extend([interval[2], interval[3]])
-    #     data.append(self.crc.calc(data[5:7]))
-    #     self.i2c.write(data)
-    #     sleep(0.05)
-    #     return self.get_auto_cleaning_interval()
-
     def reset(self) -> None:
         self.i2c.write(CMD_RESET)
 
@@ -233,7 +129,6 @@ class SCD30:
         data = CMD_START_MEASUREMENT
         pressure = 0 #960
         data.extend(pressure.to_bytes(2, 'big'))
-#         data.extend([data_format["IEEE754_float"], 0x00])
         data.append(self.crc.calc(data[2:4]))
         self.i2c.write(data)
         sleep(0.05)
@@ -274,49 +169,49 @@ class SCD30:
         else:
             return round((((-1)**(sign) * real) + dec) / pow(2, divider), 3)
 
-    def __CO2_measurement(self, data: list) -> int:
-#         category = ["MMSB", "MLSB", "LMSB", "LLSB"]
-# 
+#     def __CO2_measurement(self, data: list) -> int:
+# #         category = ["MMSB", "MLSB", "LMSB", "LLSB"]
+# # 
+# #         co2_conc = {
+# #             "MMSB": 0.0,
+# #             "MLSB": 0.0,
+# #             "LMSB": 0.0,
+# #             "LLSB": 0.0
+# #         }
+#         category = ["CO2"]
+
 #         co2_conc = {
-#             "MMSB": 0.0,
-#             "MLSB": 0.0,
-#             "LMSB": 0.0,
-#             "LLSB": 0.0
+#             "CO2": 0.0
 #         }
-        category = ["CO2"]
 
-        co2_conc = {
-            "CO2": 0.0
-        }
+#         for block, (co2) in enumerate(category):
+#             co2_data = []
+#             for i in range(0, SIZE_FLOAT, PACKET_SIZE):
+#                 offset = (block * SIZE_FLOAT) + i
+#                 if self.crc.calc(data[offset:offset+2]) != data[offset+2]:
+#                     if self.logger:
+#                         self.logger.warning(
+#                             "'__CO2_measurement' CRC mismatched!" +
+#                             f"  Data: {data[offset:offset+2]}" +
+#                             f"  Calculated CRC: {self.crc.calc(data[offset:offset+2])}" +
+#                             f"  Expected: {data[offset+2]}")
+#                     else:
+#                         print(
+#                             "'__CO2_measurement' CRC mismatched!" +
+#                             f"  Data: {data[offset:offset+2]}" +
+#                             f"  Calculated CRC: {self.crc.calc(data[offset:offset+2])}" +
+#                             f"  Expected: {data[offset+2]}")
+#                     self.__valid["CO2"] = False
+#                     return {}
 
-        for block, (co2) in enumerate(category):
-            co2_data = []
-            for i in range(0, SIZE_FLOAT, PACKET_SIZE):
-                offset = (block * SIZE_FLOAT) + i
-                if self.crc.calc(data[offset:offset+2]) != data[offset+2]:
-                    if self.logger:
-                        self.logger.warning(
-                            "'__CO2_measurement' CRC mismatched!" +
-                            f"  Data: {data[offset:offset+2]}" +
-                            f"  Calculated CRC: {self.crc.calc(data[offset:offset+2])}" +
-                            f"  Expected: {data[offset+2]}")
-                    else:
-                        print(
-                            "'__CO2_measurement' CRC mismatched!" +
-                            f"  Data: {data[offset:offset+2]}" +
-                            f"  Calculated CRC: {self.crc.calc(data[offset:offset+2])}" +
-                            f"  Expected: {data[offset+2]}")
-                    self.__valid["CO2"] = False
-                    return {}
+#                 co2_data.extend(data[offset:offset+2])
 
-                co2_data.extend(data[offset:offset+2])
+#             co2_conc[co2] = self.__ieee754_number_conversion(
+#                 co2_data[0] << 24 | co2_data[1] << 16 | co2_data[2] << 8 | co2_data[3])
 
-            co2_conc[co2] = self.__ieee754_number_conversion(
-                co2_data[0] << 24 | co2_data[1] << 16 | co2_data[2] << 8 | co2_data[3])
+#         self.__valid["CO2"] = True
 
-        self.__valid["CO2"] = True
-
-        return co2_conc
+#         return co2_conc
 
     def __measurement(self, data: list) -> int:
         category = ["CO2", "T", "RH"]
@@ -334,13 +229,13 @@ class SCD30:
                 if self.crc.calc(data[offset:offset+2]) != data[offset+2]:
                     if self.logger:
                         self.logger.warning(
-                            "'__CO2_measurement' CRC mismatched!" +
+                            "'__measurement' CRC mismatched!" +
                             f"  Data: {data[offset:offset+2]}" +
                             f"  Calculated CRC: {self.crc.calc(data[offset:offset+2])}" +
                             f"  Expected: {data[offset+2]}")
                     else:
                         print(
-                            "'__CO2_measurement' CRC mismatched!" +
+                            "'__measurement' CRC mismatched!" +
                             f"  Data: {data[offset:offset+2]}" +
                             f"  Calculated CRC: {self.crc.calc(data[offset:offset+2])}" +
                             f"  Expected: {data[offset+2]}")
@@ -352,109 +247,88 @@ class SCD30:
             reading[x] = self.__ieee754_number_conversion(
                 measured_data[0] << 24 | measured_data[1] << 16 | measured_data[2] << 8 | measured_data[3])
 
-        self.__valid["CO2"] = True
+        # self.__valid["CO2"] = True
+        self.__valid = {
+            "CO2": True,
+            "T": True,
+            "RH": True
+        }
 
         return reading
 
-    def __T_measurement(self, data: list) -> dict:
-        category = ["T"]
+    # def __T_measurement(self, data: list) -> dict:
+    #     category = ["T"]
 
-        temp_value = {
-            "T": 0.0
-        }
+    #     temp_value = {
+    #         "T": 0.0
+    #     }
 
-        for block, (temp) in enumerate(category):
-            t_data = []
-            for i in range(0, SIZE_FLOAT, PACKET_SIZE):
-                offset = (block * SIZE_FLOAT) + i
-                if self.crc.calc(data[offset:offset+2]) != data[offset+2]:
-                    if self.logger:
-                        self.logger.warning(
-                            "'__T_measurement' CRC mismatched!" +
-                            f"  Data: {data[offset:offset+2]}" +
-                            f"  Calculated CRC: {self.crc.calc(data[offset:offset+2])}" +
-                            f"  Expected: {data[offset+2]}")
-                    else:
-                        print(
-                            "'__T_measurement' CRC mismatched!" +
-                            f"  Data: {data[offset:offset+2]}" +
-                            f"  Calculated CRC: {self.crc.calc(data[offset:offset+2])}" +
-                            f"  Expected: {data[offset+2]}")
+    #     for block, (temp) in enumerate(category):
+    #         t_data = []
+    #         for i in range(0, SIZE_FLOAT, PACKET_SIZE):
+    #             offset = (block * SIZE_FLOAT) + i
+    #             if self.crc.calc(data[offset:offset+2]) != data[offset+2]:
+    #                 if self.logger:
+    #                     self.logger.warning(
+    #                         "'__T_measurement' CRC mismatched!" +
+    #                         f"  Data: {data[offset:offset+2]}" +
+    #                         f"  Calculated CRC: {self.crc.calc(data[offset:offset+2])}" +
+    #                         f"  Expected: {data[offset+2]}")
+    #                 else:
+    #                     print(
+    #                         "'__T_measurement' CRC mismatched!" +
+    #                         f"  Data: {data[offset:offset+2]}" +
+    #                         f"  Calculated CRC: {self.crc.calc(data[offset:offset+2])}" +
+    #                         f"  Expected: {data[offset+2]}")
 
-                    self.__valid["T"] = False
-                    return {}
+    #                 self.__valid["T"] = False
+    #                 return {}
 
-                t_data.extend(data[offset:offset+2])
+    #             t_data.extend(data[offset:offset+2])
 
-            temp_value[temp] = self.__ieee754_number_conversion(
-                t_data[0] << 24 | t_data[1] << 16 | t_data[2] << 8 | t_data[3])
+    #         temp_value[temp] = self.__ieee754_number_conversion(
+    #             t_data[0] << 24 | t_data[1] << 16 | t_data[2] << 8 | t_data[3])
 
-        self.__valid["T"] = True
+    #     self.__valid["T"] = True
 
-        return temp_value
+    #     return temp_value
 
-    def __RH_measurement(self, data: list) -> dict:
-        category = ["RH"]
+    # def __RH_measurement(self, data: list) -> dict:
+    #     category = ["RH"]
 
-        rh_value = {
-            "RH": 0.0
-        }
+    #     rh_value = {
+    #         "RH": 0.0
+    #     }
 
-        for block, (rh) in enumerate(category):
-            rh_data = []
-            for i in range(0, SIZE_FLOAT, PACKET_SIZE):
-                offset = (block * SIZE_FLOAT) + i
-                if self.crc.calc(data[offset:offset+2]) != data[offset+2]:
-                    if self.logger:
-                        self.logger.warning(
-                            "'__RH_measurement' CRC mismatched!" +
-                            f"  Data: {data[offset:offset+2]}" +
-                            f"  Calculated CRC: {self.crc.calc(data[offset:offset+2])}" +
-                            f"  Expected: {data[offset+2]}")
-                    else:
-                        print(
-                            "'__RH_measurement' CRC mismatched!" +
-                            f"  Data: {data[offset:offset+2]}" +
-                            f"  Calculated CRC: {self.crc.calc(data[offset:offset+2])}" +
-                            f"  Expected: {data[offset+2]}")
+    #     for block, (rh) in enumerate(category):
+    #         rh_data = []
+    #         for i in range(0, SIZE_FLOAT, PACKET_SIZE):
+    #             offset = (block * SIZE_FLOAT) + i
+    #             if self.crc.calc(data[offset:offset+2]) != data[offset+2]:
+    #                 if self.logger:
+    #                     self.logger.warning(
+    #                         "'__RH_measurement' CRC mismatched!" +
+    #                         f"  Data: {data[offset:offset+2]}" +
+    #                         f"  Calculated CRC: {self.crc.calc(data[offset:offset+2])}" +
+    #                         f"  Expected: {data[offset+2]}")
+    #                 else:
+    #                     print(
+    #                         "'__RH_measurement' CRC mismatched!" +
+    #                         f"  Data: {data[offset:offset+2]}" +
+    #                         f"  Calculated CRC: {self.crc.calc(data[offset:offset+2])}" +
+    #                         f"  Expected: {data[offset+2]}")
 
-                    self.__valid["RH"] = False
-                    return {}
+    #                 self.__valid["RH"] = False
+    #                 return {}
 
-                rh_data.extend(data[offset:offset+2])
+    #             rh_data.extend(data[offset:offset+2])
 
-            rh_value[rh] = self.__ieee754_number_conversion(
-                rh_data[0] << 24 | rh_data[1] << 16 | rh_data[2] << 8 | rh_data[3])
+    #         rh_value[rh] = self.__ieee754_number_conversion(
+    #             rh_data[0] << 24 | rh_data[1] << 16 | rh_data[2] << 8 | rh_data[3])
 
-        self.__valid["RH"] = True
+    #     self.__valid["RH"] = True
 
-        return rh_value
-
-    # def __particle_size_measurement(self, data: list) -> float:
-    #     size = []
-    #     for i in range(0, SIZE_FLOAT, PACKET_SIZE):
-    #         if self.crc.calc(data[i:i+2]) != data[i+2]:
-    #             if self.logger:
-    #                 self.logger.warning(
-    #                     "'__particle_size_measurement' CRC mismatched!" +
-    #                     f"  Data: {data[i:i+2]}" +
-    #                     f"  Calculated CRC: {self.crc.calc(data[i:i+2])}" +
-    #                     f"  Expected: {data[i+2]}")
-    #             else:
-    #                 print(
-    #                     "'__particle_size_measurement' CRC mismatched!" +
-    #                     f"  Data: {data[i:i+2]}" +
-    #                     f"  Calculated CRC: {self.crc.calc(data[i:i+2])}" +
-    #                     f"  Expected: {data[i+2]}")
-
-    #             self.__valid["particle_size"] = False
-    #             return 0.0
-
-    #         size.extend(data[i:i+2])
-
-    #     self.__valid["particle_size"] = True
-
-    #     return self.__ieee754_number_conversion(size[0] << 24 | size[1] << 16 | size[2] << 8 | size[3])
+    #     return rh_value
 
     def __get_measured_value(self) -> None:
         while True:
@@ -469,32 +343,8 @@ class SCD30:
                 if self.__data.full():
                     self.__data.get()
 
-#                 co2_result = self.__CO2_measurement(data[:6])
-#                 print(co2_result)
-# 
-#                 result = {
-#                     "sensor_data": {
-#                         "CO2": self.__CO2_measurement(data[:6]),
-#                         "T": self.__T_measurement(data[6:12]),
-#                         "RH": self.__RH_measurement(data[13:]),
-#                         "CO2_unit": "ppm",
-#                         "T_unit": "°C",
-#                         "RH_unit": "%"
-#                     },
-                co2_result = self.__measurement(data)
-                print(co2_result)
-
-#                 result = {
-#                     "sensor_data": {
-#                         "CO2": self.__CO2_measurement(data[:6]),
-#                         "T": self.__T_measurement(data[6:12]),
-#                         "RH": self.__RH_measurement(data[13:]),
-#                         "CO2_unit": "ppm",
-#                         "T_unit": "°C",
-#                         "RH_unit": "%"
-#                     },
-#                     "timestamp": int(datetime.now().timestamp())
-#                 }
+                result = self.__measurement(data)
+                print(result)
 
                 self.__data.put(result if all(self.__valid.values()) else {})
 
@@ -507,16 +357,15 @@ class SCD30:
                 self.stop_measurement()
                 sys.exit()
 
-            except Exception as e:
+            except Exception as err:
                 if self.logger:
-                    self.logger.warning(f"{type(e).__name__}: {e}")
+                    self.logger.warning(f"{type(err).__name__}: {err}")
                 else:
-                    print(f"{type(e).__name__}: {e}")
+                    print(f"{type(err).__name__}: {err}")
 
             finally:
                 sleep(self.sampling_period)
 
     def __run(self) -> None:
-        self.__get_measured_value()
-#         threading.Thread(target=self.__get_measured_value,
-#                          daemon=True).start()
+        threading.Thread(target=self.__get_measured_value,
+                         daemon=True).start()
