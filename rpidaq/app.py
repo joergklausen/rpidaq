@@ -1,5 +1,6 @@
 # %%
 import sys
+import os
 import json
 from time import sleep
 import yaml
@@ -22,23 +23,26 @@ if __name__ == "__main__":
             "Serial number": pm_sensor.get_serial_number(),
             "Firmware version": pm_sensor.get_firmware_version(),
             "Status register": pm_sensor.get_status_register(),
-            "Auto cleaning interval": f"{pm_sensor.get_auto_cleaning_interval()} s"}
+            "Auto cleaning interval": pm_sensor.get_auto_cleaning_interval()
+            }
         print(pm_sensor_cfg)
-        with open(f"{cfg['data']}/sps30.json", "at") as fh:
+        with open(os.path.expanduser(cfg['data']) + "/sps30.json", "wt") as fh:
             fh.write(json.dumps(pm_sensor_cfg))
         pm_sensor.start_measurement()
         sleep(5)
 
     co2_sensor = None    
     if cfg["sensors"]["scd30"]:
-        c02_sensor = SCD30()
-        c02_sensor_cfg = {
+        co2_sensor = SCD30(sampling_period=60)
+        co2_sensor_cfg = {
             "Product type": "SCD30",
-            "Firmware version": f"{c02_sensor.get_firmware_version()}"}
-        print(c02_sensor_cfg)
-        with open(f"{cfg['data']}/scd30.json", "at") as fh:
-            fh.write(json.dumps(c02_sensor_cfg))
-        c02_sensor.start_measurement()
+            "Firmware version": co2_sensor.get_firmware_version()
+            }
+        print(co2_sensor_cfg)
+        with open(os.path.expanduser(cfg['data']) + "/scd30.json", "wt") as fh:
+            fh.write(json.dumps(co2_sensor_cfg))
+            fh.write("\n")
+        co2_sensor.start_measurement()
         sleep(5)
 
     # main loop
@@ -46,18 +50,20 @@ if __name__ == "__main__":
     while True:
         try:
             if pm_sensor:
-                with open(f"{cfg['data']}/sps30.json", "at") as fh:
-                    fh.write(json.dumps(pm_sensor.get_measurement(), indent=2))
-                print(json.dumps(pm_sensor.get_measurement(), indent=2))
+                pm_result = json.dumps(pm_sensor.get_measurement(), indent=2)
+                with open(os.path.expanduser(cfg['data']) + "/sps30.json", "at") as fh:
+                    fh.write(pm_result)
+                print(pm_result)
 
             if co2_sensor:
-                with open(f"{cfg['data']}/scd30.json", "at") as fh:
-                    fh.write(json.dumps(c02_sensor.get_measurement(), indent=2))
-                print(json.dumps(c02_sensor.get_measurement(), indent=2))
-            sleep(2)
+                result = co2_sensor.get_measurement()
+                with open(os.path.expanduser(cfg['data']) + "/scd30.json", "at") as fh:
+                    fh.write(f"{result['CO2']},{result['T']},{result['RH']}\n")
+                print(json.dumps(result, indent=2))
+            sleep(60)
 
         except KeyboardInterrupt:
             print("Stopping measurement...")
             pm_sensor.stop_measurement()
-            c02_sensor.stop_measurement()
+            co2_sensor.stop_measurement()
             sys.exit()

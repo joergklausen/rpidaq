@@ -70,7 +70,7 @@ SIZE_INTEGER = 3  # unsigned 16 bit integer
 
 class SPS30:
 
-    def __init__(self,  bus: int = 1, address: int = 0x69, sampling_period: int = 1, logger: str = None):
+    def __init__(self,  bus:int = 1, address:int = 0x69, sampling_period:int = 1, logger:str = None):
         self.logger = None
         if logger:
             self.logger = logging.getLogger(logger)
@@ -85,19 +85,6 @@ class SPS30:
             "particle_size": False
         }
 
-    # def crc_calc(self, data: list) -> int:
-    #     crc = 0xFF
-    #     for i in range(2):
-    #         crc ^= data[i]
-    #         for _ in range(8, 0, -1):
-    #             if crc & 0x80:
-    #                 crc = (crc << 1) ^ 0x31
-    #             else:
-    #                 crc = crc << 1
-
-    #     # The checksum only contains 8-bit,
-    #     # so the calculated value has to be masked with 0xFF
-    #     return (crc & 0x0000FF)
 
     def get_firmware_version(self) -> str:
         self.i2c.write(CMD_GET_FIRMWARE_VERSION)
@@ -118,7 +105,9 @@ class SPS30:
                 return "CRC mismatched"
 
             result += "".join(map(chr, data[i:i+2]))
-
+        if result == "00080000":
+            result = "SPS30"
+            
         return result
 
     def get_serial_number(self) -> str:
@@ -157,8 +146,10 @@ class SPS30:
             "fan_status": fan_status
         }
 
+
     def clear_status_register(self) -> None:
         self.i2c.write(CMD_CLEAR_STATUS_REGISTER)
+
 
     def get_data_ready_flag(self) -> bool:
         self.i2c.write(CMD_GET_DATA_READY_FLAG)
@@ -182,14 +173,18 @@ class SPS30:
 
         return True if data[1] == 1 else False
 
+
     def sleep(self) -> None:
         self.i2c.write(CMD_SLEEP)
+
 
     def wakeup(self) -> None:
         self.i2c.write(CMD_WAKEUP)
 
+
     def start_fan_cleaning(self) -> None:
         self.i2c.write(CMD_START_FAN_CLEANING)
+
 
     def get_auto_cleaning_interval(self) -> int:
         self.i2c.write(CMD_GET_AUTO_CLEANING_INTERVAL)
@@ -203,6 +198,7 @@ class SPS30:
             interval.extend(data[i:i+2])
 
         return (interval[0] << 24 | interval[1] << 16 | interval[2] << 8 | interval[3])
+
 
     def set_auto_cleaning_interval(self, days: int) -> int:
         seconds = days * 86400  # 1day = 86400sec
@@ -220,8 +216,10 @@ class SPS30:
         sleep(0.05)
         return self.get_auto_cleaning_interval()
 
+
     def reset(self) -> None:
         self.i2c.write(CMD_RESET)
+
 
     def start_measurement(self) -> None:
         data_format = {
@@ -236,15 +234,18 @@ class SPS30:
         sleep(0.05)
         self.__run()
 
+
     def get_measurement(self) -> dict:
         if self.__data.empty():
             return {}
 
         return self.__data.get()
 
+
     def stop_measurement(self) -> None:
         self.i2c.write(CMD_STOP_MEASUREMENT)
         self.i2c.close()
+
 
     def __ieee754_number_conversion(self, data: int) -> float:
         binary = "{:032b}".format(data)
@@ -270,6 +271,7 @@ class SPS30:
             return round((((-1)**(sign) * real) + dec), 3)
         else:
             return round((((-1)**(sign) * real) + dec) / pow(2, divider), 3)
+
 
     def __mass_density_measurement(self, data: list) -> dict:
         category = ["pm1.0", "pm2.5", "pm4.0", "pm10"]
@@ -309,6 +311,7 @@ class SPS30:
         self.__valid["mass_density"] = True
 
         return density
+
 
     def __particle_count_measurement(self, data: list) -> dict:
         category = ["pm0.5", "pm1.0", "pm2.5", "pm4.0", "pm10"]
@@ -351,6 +354,7 @@ class SPS30:
 
         return count
 
+
     def __particle_size_measurement(self, data: list) -> float:
         size = []
         for i in range(0, SIZE_FLOAT, PACKET_SIZE):
@@ -377,6 +381,7 @@ class SPS30:
 
         return self.__ieee754_number_conversion(size[0] << 24 | size[1] << 16 | size[2] << 8 | size[3])
 
+
     def __get_measured_value(self) -> None:
         while True:
             try:
@@ -390,15 +395,13 @@ class SPS30:
                     self.__data.get()
 
                 result = {
-                    "sensor_data": {
-                        "mass_density": self.__mass_density_measurement(data[:24]),
-                        "particle_count": self.__particle_count_measurement(data[24:54]),
-                        "particle_size": self.__particle_size_measurement(data[54:]),
-                        "mass_density_unit": "ug/m3",
-                        "particle_count_unit": "#/cm3",
-                        "particle_size_unit": "um"
-                    },
-                    "timestamp": int(datetime.now().timestamp())
+                    "timestamp": int(datetime.now().timestamp()),
+                    "mass_density": self.__mass_density_measurement(data[:24]),
+                    "particle_count": self.__particle_count_measurement(data[24:54]),
+                    "particle_size": self.__particle_size_measurement(data[54:]),
+                    "mass_density_unit": "μg/m3",
+                    "particle_count_unit": "#/cm3",
+                    "particle_size_unit": "μm"
                 }
 
                 self.__data.put(result if all(self.__valid.values()) else {})
@@ -421,6 +424,11 @@ class SPS30:
             finally:
                 sleep(self.sampling_period)
 
+
     def __run(self) -> None:
         threading.Thread(target=self.__get_measured_value,
                          daemon=True).start()
+
+
+if __name__ == "__main__":
+    pass
