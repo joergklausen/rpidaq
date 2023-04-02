@@ -28,6 +28,7 @@ if __name__ == "__main__":
         print(pm_sensor_cfg)
         with open(os.path.expanduser(cfg['data']) + "/sps30.json", "wt") as fh:
             fh.write(json.dumps(pm_sensor_cfg))
+            fh.write("\n")
         pm_sensor.start_measurement()
         sleep(5)
 
@@ -50,15 +51,25 @@ if __name__ == "__main__":
     while True:
         try:
             if pm_sensor:
-                pm_result = json.dumps(pm_sensor.get_measurement(), indent=2)
+                pm_result = pm_sensor.get_measurement()
                 with open(os.path.expanduser(cfg['data']) + "/sps30.json", "at") as fh:
-                    fh.write(pm_result)
-                print(pm_result)
+#                     fh.write(pm_result)
+                    fh.write(f"{pm_result['timestamp']}")
+                    fh.write(f",{pm_result['mass_density']['pm1.0']}")
+                    fh.write(f",{pm_result['mass_density']['pm2.5']}")
+                    fh.write(f",{pm_result['mass_density']['pm4.0']}")
+                    fh.write(f",{pm_result['mass_density']['pm10']}")
+                    fh.write(f",{pm_result['particle_count']['pm0.5']}")
+                    fh.write(f",{pm_result['particle_count']['pm1.0']}")
+                    fh.write(f",{pm_result['particle_count']['pm2.5']}")
+                    fh.write(f",{pm_result['particle_count']['pm4.0']}")
+                    fh.write(f",{pm_result['particle_count']['pm10']}\n")
+                print(json.dumps(pm_result, indent=2))
 
             if co2_sensor:
                 result = co2_sensor.get_measurement()
                 with open(os.path.expanduser(cfg['data']) + "/scd30.json", "at") as fh:
-                    fh.write(f"{result['CO2']},{result['T']},{result['RH']}\n")
+                    fh.write(f"{result['timestamp']},{result['CO2']},{result['T']},{result['RH']}\n")
                 print(json.dumps(result, indent=2))
             sleep(60)
 
