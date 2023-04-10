@@ -395,7 +395,7 @@ class SPS30:
                     self.__data.get()
 
                 result = {
-                    "timestamp": int(datetime.now().timestamp()),
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "mass_density": self.__mass_density_measurement(data[:24]),
                     "particle_count": self.__particle_count_measurement(data[24:54]),
                     "particle_size": self.__particle_size_measurement(data[54:]),

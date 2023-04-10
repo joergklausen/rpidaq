@@ -295,7 +295,7 @@ class SCD30:
                     self.__data.get()
 
                 result = {
-                    "timestamp": int(datetime.now().timestamp()),
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "CO2": self.__CO2_measurement(data),
                     "T": self.__T_measurement(data),
                     "RH": self.__RH_measurement(data),
