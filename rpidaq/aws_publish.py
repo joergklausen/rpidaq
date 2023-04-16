@@ -101,12 +101,12 @@ def parse_args(cfg):
 
 # Callback when connection is accidentally lost.
 def on_connection_interrupted(connection, error, **kwargs):
-    print(f"{time.time()} Connection interrupted. error: {error}")
+    print(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} Connection interrupted. error: {error}")
 
 
 # Callback when an interrupted connection is re-established.
 def on_connection_resumed(connection, return_code, session_present, **kwargs):
-    print(f"{time.time()} Connection resumed. return_code: {return_code} session_present: {session_present}")
+    print(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} Connection resumed. return_code: {return_code} session_present: {session_present}")
 
     if return_code == mqtt.ConnectReturnCode.ACCEPTED and not session_present:
         print("Session did not persist. Resubscribing to existing topics...")
@@ -176,7 +176,7 @@ def main():
 
     co2_sensor = None    
     if cfg["sensors"]["scd30"]:
-        co2_sensor = SCD30(sampling_period=60)
+        co2_sensor = SCD30(sampling_period=cfg["scd30"]["sampling_period"], pressure=cfg["scd30"]["pressure"])
         co2_sensor_cfg = {
             "Product type": "SCD30",
             "Firmware version": co2_sensor.get_firmware_version()
@@ -218,7 +218,7 @@ def main():
         # Create message payload
         pm_sensor_result = pm_sensor.get_measurement()
         co2_sensor_result = co2_sensor.get_measurement()
-        print(f"scd30 returned: {co2_sensor_result}")
+#         print(f"scd30 returned: {co2_sensor_result}")
 #         payload_rndnum = get_rndnum()
 #         print(payload_rndnum)
 
@@ -237,10 +237,10 @@ def main():
                 "particle_count_pm2.5":pm_sensor_result['particle_count']['pm2.5'],
                 "particle_count_pm4.0":pm_sensor_result['particle_count']['pm4.0'],
                 "particle_count_pm10":pm_sensor_result['particle_count']['pm10'],
-#                 "dtm_co2_sensor": co2_sensor_result['timestamp'],
-#                 "CO2": co2_sensor_result['CO2'],
-#                 "T": co2_sensor_result['T'],
-#                 "RH": co2_sensor_result['RH']
+                "dtm_co2_sensor": co2_sensor_result['timestamp'],
+                "CO2": co2_sensor_result['CO2'],
+                "T": co2_sensor_result['T'],
+                "RH": co2_sensor_result['RH']
             }
         }
 

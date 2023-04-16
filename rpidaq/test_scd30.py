@@ -29,9 +29,10 @@ import json
 from time import sleep
 from scd30.scd30 import SCD30
 
+scd30_sampling_period = 10
 
 if __name__ == "__main__":
-    c02_sensor = SCD30()
+    c02_sensor = SCD30(sampling_period=scd30_sampling_period)
     print(f"SCD30 firmware version: {c02_sensor.get_firmware_version()}")
     c02_sensor.start_measurement()
     sleep(5)
@@ -39,7 +40,7 @@ if __name__ == "__main__":
     while True:
         try:
             print(json.dumps(c02_sensor.get_measurement(), indent=2))
-            sleep(2)
+            sleep(scd30_sampling_period)
 
         except KeyboardInterrupt:
             print("Stopping measurement...")
