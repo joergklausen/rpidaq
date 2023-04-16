@@ -1,134 +1,27 @@
+import os
 import argparse
 import json
 import sys
 import threading
 import time
+import random
+import yaml
 
-import adafruit_dht
+# import adafruit_dht
 from awscrt import io, mqtt, auth, http, exceptions
 from awsiot import mqtt_connection_builder
 from getmac import get_mac_address as gma
-from gpiozero import LightSensor, MotionSensor, LED
+from sps30.sps30 import SPS30
+from scd30.scd30 import SCD30
 
-from MQ import MQ
-
-# Author: Gary A. Stafford
-# V2 uses AWS IoT SDK for Python v2 and newer Adafruit_CircuitPython_DHT library
+# modified from example provided by Gary A. Stafford
 # MQTT connection code is modified version of aws-iot-device-sdk-python-v2 sample:
 # https://github.com/aws/aws-iot-device-sdk-python-v2/blob/master/samples/pubsub.py
-# https://github.com/adafruit/Adafruit_CircuitPython_DHT
-# Note, we are only publishing messages with this script,
-# not subscribing (uncomment lines 79-87 to subscribe to topic)
-
-
-# Constants
-PIN_DHT = 18
-PIN_LIGHT = 24
-PIN_PIR = 23
-PIN_PIR_LED = 25
 
 # Global Variables
 count: int = 0  # from args
 received_count: int = 0
 received_all_event = threading.Event()
-
-
-def main():
-    # Parse command line arguments
-    parser, args = parse_args()
-
-    global count
-    count = args.count
-
-    # set log level
-    io.init_logging(getattr(io.LogLevel, args.verbosity), 'stderr')
-
-    # Print MAC address
-    print(gma())
-
-    # Initialize and Calibrate Gas Sensor 1x
-    mq = MQ()
-
-    # Initial the dht device, with data pin connected to:
-    dht_device = adafruit_dht.DHT22(PIN_DHT)
-
-    # Initialize Light Sensor
-    ls = LightSensor(PIN_LIGHT)
-
-    # Initialize PIR Sensor
-    pir = MotionSensor(PIN_PIR)
-    led = LED(PIN_PIR_LED)
-
-    # Spin up resources
-    event_loop_group = io.EventLoopGroup(1)
-    host_resolver = io.DefaultHostResolver(event_loop_group)
-    client_bootstrap = io.ClientBootstrap(event_loop_group, host_resolver)
-
-    # Set MQTT connection
-    mqtt_connection = set_mqtt_connection(args, client_bootstrap)
-
-    print("Connecting to {} with client ID '{}'...".format(
-        args.endpoint, args.client_id))
-
-    connect_future = mqtt_connection.connect()
-
-    # Future.result() waits until a result is available
-    connect_future.result()
-    print("Connected!")
-
-    # # Subscribe (this will pull in messages down from other devices)
-    # print("Subscribing to topic '{}'...".format(args.topic))
-    # subscribe_future, packet_id = mqtt_connection.subscribe(
-    #     topic=args.topic,
-    #     qos=mqtt.QoS.AT_LEAST_ONCE,
-    #     callback=on_message_received)
-    #
-    # subscribe_result = subscribe_future.result()
-    # print("Subscribed with {}".format(str(subscribe_result['qos'])))
-
-    while True:
-        led.off()
-
-        # Create message payload
-        payload_dht = get_sensor_data_dht(dht_device)
-        payload_gas = get_sensor_data_gas(mq)
-        payload_light = get_sensor_data_light(ls)
-        payload_motion = get_sensor_data_motion(pir, led)
-
-        payload = {
-            "device_id": gma(),
-            "ts": time.time(),
-            "data": {
-                "temp": payload_dht["temp"],
-                "humidity": payload_dht["humidity"],
-                "lpg": payload_gas["lpg"],
-                "co": payload_gas["co"],
-                "smoke": payload_gas["smoke"],
-                "light": payload_light["light"],
-                "motion": payload_motion["motion"]
-            }
-        }
-
-        # Don't send bad messages!
-        if payload["data"]["temp"] is not None \
-                and payload["data"]["humidity"] is not None \
-                and payload["data"]["co"] is not None:
-            # Publish Message
-            message_json = json.dumps(payload, sort_keys=True, indent=None, separators=(',', ':'))
-
-            try:
-                mqtt_connection.publish(
-                    topic=args.topic,
-                    payload=message_json,
-                    qos=mqtt.QoS.AT_LEAST_ONCE)
-            except mqtt.SubscribeError as err:
-                print(".SubscribeError: {}".format(err))
-            except exceptions.AwsCrtError as err:
-                print("AwsCrtError: {}".format(err))
-            else:
-                time.sleep(args.frequency)
-        else:
-            print("sensor failure...retrying...")
 
 
 def set_mqtt_connection(args, client_bootstrap):
@@ -166,82 +59,24 @@ def set_mqtt_connection(args, client_bootstrap):
 
     return mqtt_connection
 
-
-def get_sensor_data_dht(dht_device):
-    try:
-        temperature = dht_device.temperature
-        humidity = dht_device.humidity
-        payload = {
-            "temp": temperature,
-            "humidity": humidity
-        }
-    except RuntimeError as err:
-        # Errors happen fairly often, DHT's are hard to read, just keep going
-        print(".RuntimeError: {}".format(err))
-        payload = {
-            "temp": None,
-            "humidity": None
-        }
-        return payload
-
-    return payload
-
-
-def get_sensor_data_gas(mq):
-    try:
-        mqp = mq.MQPercentage()
-        payload = {
-            "lpg": mqp["GAS_LPG"],
-            "co": mqp["CO"],
-            "smoke": mqp["SMOKE"]
-        }
-    except ValueError as err:
-        print("Error: {}".format(err))
-        payload = {
-            "lpg": None,
-            "co": None,
-            "smoke": None
-        }
-
-    return payload
-
-
-def get_sensor_data_light(ls):
-    # print("ls.value: {}".format(ls.value))
-
-    if ls.value == 0.0:  # > 0.1:
-        payload = {"light": True}
-    else:
-        payload = {"light": False}
-
-    return payload
-
-
-def get_sensor_data_motion(pir, led):
-    # print("pir.value: {}".format(pir.value))
-
-    if pir.value == 1.0:  # > 0.5:
-        payload = {"motion": True}
-        led.on()
-    else:
-        payload = {"motion": False}
-        led.off()
-
-    return payload
+def get_rndnum():
+    return {"rndnum": random.random() }
 
 
 # Read in command-line parameters
-def parse_args():
+def parse_args(cfg):
     parser = argparse.ArgumentParser(description="Send and receive messages through and MQTT connection.")
-    parser.add_argument('--endpoint', required=True, help="Your AWS IoT custom endpoint, not including a port. " +
+#    parser.add_argument('--endpoint', required=True, help="Your AWS IoT custom endpoint, not including a port. " +
+#                                                           "Ex: \"abcd123456wxyz-ats.iot.us-east-1.amazonaws.com\"")
+    parser.add_argument('--endpoint', default=cfg["aws"]["endpoint"], help="Your AWS IoT custom endpoint, not including a port. " +
                                                           "Ex: \"abcd123456wxyz-ats.iot.us-east-1.amazonaws.com\"")
-    parser.add_argument('--cert', help="File path to your client certificate, in PEM format.")
-    parser.add_argument('--key', help="File path to your private key, in PEM format.")
-    parser.add_argument('--root-ca', help="File path to root certificate authority, in PEM format. " +
+    parser.add_argument('--cert', default=cfg["aws"]["cert"], help="File path to your client certificate, in PEM format.")
+    parser.add_argument('--key', default=cfg["aws"]["key"], help="File path to your private key, in PEM format.")
+    parser.add_argument('--root-ca', default=cfg["aws"]["root_ca"], help="File path to root certificate authority, in PEM format. " +
                                           "Necessary if MQTT server uses a certificate that's not already in " +
                                           "your trust store.")
-    parser.add_argument('--client-id', default='samples-client-id', help="Client ID for MQTT connection.")
-    parser.add_argument('--topic', default="samples/test", help="Topic to subscribe to, and publish messages to.")
+    parser.add_argument('--client-id', default=cfg["aws"]["client_id"], help="Client ID for MQTT connection.")
+    parser.add_argument('--topic', default=cfg["aws"]["topic"], help="Topic to subscribe to, and publish messages to.")
     parser.add_argument('--message', default="Hello World!", help="Message to publish. " +
                                                                   "Specify empty string to publish nothing.")
     parser.add_argument('--count', default=0, type=int, help="Number of messages to publish/receive before exiting. " +
@@ -257,7 +92,7 @@ def parse_args():
     parser.add_argument('--proxy-port', type=int, default=8080, help="Port for proxy to connect to.")
     parser.add_argument('--verbosity', choices=[x.name for x in io.LogLevel], default=io.LogLevel.NoLogs.name,
                         help='Logging level')
-    parser.add_argument("--frequency", action="store", dest="frequency", type=int, default=5,
+    parser.add_argument("--frequency", default=cfg["aws"]["frequency"], action="store", dest="frequency", type=int,
                         help="IoT event message frequency")
 
     args = parser.parse_args()
@@ -266,12 +101,12 @@ def parse_args():
 
 # Callback when connection is accidentally lost.
 def on_connection_interrupted(connection, error, **kwargs):
-    print("Connection interrupted. error: {}".format(error))
+    print(f"{time.time()} Connection interrupted. error: {error}")
 
 
 # Callback when an interrupted connection is re-established.
 def on_connection_resumed(connection, return_code, session_present, **kwargs):
-    print("Connection resumed. return_code: {} session_present: {}".format(return_code, session_present))
+    print(f"{time.time()} Connection resumed. return_code: {return_code} session_present: {session_present}")
 
     if return_code == mqtt.ConnectReturnCode.ACCEPTED and not session_present:
         print("Session did not persist. Resubscribing to existing topics...")
@@ -300,5 +135,138 @@ def on_message_received(topic, payload, **kwargs):
         received_all_event.set()
 
 
+def main():
+    # read config file
+    with open("app.cfg", "r") as f:
+        cfg = yaml.safe_load(f)
+        f.close()
+    cfg["aws"]["key"] = os.path.expanduser(cfg["aws"]["key"])
+    cfg["aws"]["cert"] = os.path.expanduser(cfg["aws"]["cert"])
+    cfg["aws"]["root_ca"] = os.path.expanduser(cfg["aws"]["root_ca"])
+
+    # parse command line arguments (over-writes config)
+    parser, args = parse_args(cfg)
+       
+    global count
+    count = args.count
+
+    # set log level
+    io.init_logging(getattr(io.LogLevel, args.verbosity), 'stderr')
+
+    # Print MAC address
+    print(gma())
+
+    # initialize sensors
+    pm_sensor = None
+    if cfg["sensors"]["sps30"]:
+        pm_sensor = SPS30()
+        pm_sensor_cfg = {
+            "Product type": pm_sensor.get_product_type(), 
+            "Serial number": pm_sensor.get_serial_number(),
+            "Firmware version": pm_sensor.get_firmware_version(),
+            "Status register": pm_sensor.get_status_register(),
+            "Auto cleaning interval": pm_sensor.get_auto_cleaning_interval()
+            }
+        print(pm_sensor_cfg)
+        with open(os.path.expanduser(cfg['data']) + "/sps30.json", "wt") as fh:
+            fh.write(json.dumps(pm_sensor_cfg))
+            fh.write("\n")
+        pm_sensor.start_measurement()
+        time.sleep(1)
+
+    co2_sensor = None    
+    if cfg["sensors"]["scd30"]:
+        co2_sensor = SCD30(sampling_period=60)
+        co2_sensor_cfg = {
+            "Product type": "SCD30",
+            "Firmware version": co2_sensor.get_firmware_version()
+            }
+        print(co2_sensor_cfg)
+        with open(os.path.expanduser(cfg['data']) + "/scd30.json", "wt") as fh:
+            fh.write(json.dumps(co2_sensor_cfg))
+            fh.write("\n")
+        co2_sensor.start_measurement()
+        time.sleep(1)
+
+    # spin up resources
+    event_loop_group = io.EventLoopGroup(1)
+    host_resolver = io.DefaultHostResolver(event_loop_group)
+    client_bootstrap = io.ClientBootstrap(event_loop_group, host_resolver)
+
+    # set MQTT connection
+    mqtt_connection = set_mqtt_connection(args, client_bootstrap)
+
+    print(f"Connecting to '{args.endpoint}' with client ID '{args.client_id}'...")
+
+    connect_future = mqtt_connection.connect()
+
+    # Future.result() waits until a result is available
+    connect_future.result()
+    print(connect_future.result())
+    print("Connected!")
+
+    # Subscribe (this will pull in messages down from other devices)
+#     print("Subscribing to topic '{}'...".format(args.topic))
+#     subscribe_future, packet_id = mqtt_connection.subscribe(
+#         topic=args.topic,
+#         qos=mqtt.QoS.AT_LEAST_ONCE,
+#         callback=on_message_received)
+#     subscribe_result = subscribe_future.result()
+#     print("Subscribed with {}".format(str(subscribe_result['qos'])))
+
+    while True:
+        # Create message payload
+        pm_sensor_result = pm_sensor.get_measurement()
+        co2_sensor_result = co2_sensor.get_measurement()
+        print(f"scd30 returned: {co2_sensor_result}")
+#         payload_rndnum = get_rndnum()
+#         print(payload_rndnum)
+
+        payload = {
+            "device_id": gma(),
+            "ts": time.time(),
+            "data": {
+#                 "rndnum": payload_rndnum["rndnum"],
+                "dtm_pm_sensor": pm_sensor_result['timestamp'],
+                "mass_density_pm1.0": pm_sensor_result['mass_density']['pm1.0'],
+                "mass_density_pm2.5": pm_sensor_result['mass_density']['pm2.5'],
+                "mass_density_pm4.0": pm_sensor_result['mass_density']['pm4.0'],
+                "mass_density_pm10": pm_sensor_result['mass_density']['pm10'],
+                "particle_count_pm0.5": pm_sensor_result['particle_count']['pm0.5'],
+                "particle_count_pm1.0":pm_sensor_result['particle_count']['pm1.0'],
+                "particle_count_pm2.5":pm_sensor_result['particle_count']['pm2.5'],
+                "particle_count_pm4.0":pm_sensor_result['particle_count']['pm4.0'],
+                "particle_count_pm10":pm_sensor_result['particle_count']['pm10'],
+#                 "dtm_co2_sensor": co2_sensor_result['timestamp'],
+#                 "CO2": co2_sensor_result['CO2'],
+#                 "T": co2_sensor_result['T'],
+#                 "RH": co2_sensor_result['RH']
+            }
+        }
+
+        # Don't send bad messages!
+#         if payload["data"]["temp"] is not None \
+#                 and payload["data"]["humidity"] is not None \
+#                 and payload["data"]["co"] is not None:
+        if payload["data"]["dtm_pm_sensor"] is not None:            # Publish Message
+            message_json = json.dumps(payload, sort_keys=True, indent=None, separators=(',', ':'))
+
+            try:
+                mqtt_connection.publish(
+                    topic=args.topic,
+                    payload=message_json,
+                    qos=mqtt.QoS.AT_LEAST_ONCE)
+                print(f"message {message_json} published.")
+            except mqtt.SubscribeError as err:
+                print(".SubscribeError: {}".format(err))
+            except exceptions.AwsCrtError as err:
+                print("AwsCrtError: {}".format(err))
+            else:
+                time.sleep(args.frequency)
+        else:
+            print("sensor failure...retrying...")
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
+#     sys.exit(main())

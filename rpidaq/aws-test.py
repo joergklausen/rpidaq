@@ -72,7 +72,7 @@ from scd30.scd30 import SCD30
 
 # Callback when connection is accidentally lost.
 def on_connection_interrupted(connection, error, **kwargs):
-    print("Connection interrupted. error: {}".format(error))
+    print("Connection interrupted with error: {}".format(error))
 
 
 # Callback when an interrupted connection is re-established.
@@ -218,14 +218,14 @@ if __name__ == "__main__":
     print("Connection to AWS IoT Core established.")
 
     # Subscribe (this will pull in messages down from other devices)
-    print(f"Subscribing to topic '{cfg['aws']['topic']}'...")
-    subscribe_future, packet_id = mqtt_connection.subscribe(
-        topic=cfg["aws"]["topic"],
-        qos=mqtt.QoS.AT_LEAST_ONCE,
-        callback=on_message_received)
-    
-    subscribe_result = subscribe_future.result()
-    print(f"Subscribed with {str(subscribe_result['qos'])}")
+#     print(f"Subscribing to topic '{cfg['aws']['topic']}'...")
+#     subscribe_future, packet_id = mqtt_connection.subscribe(
+#         topic=cfg["aws"]["topic"],
+#         qos=mqtt.QoS.AT_LEAST_ONCE,
+#         callback=on_message_received)
+#     
+#     subscribe_result = subscribe_future.result()
+#     print(f"Subscribed with {str(subscribe_result['qos'])}")
 
     # begin publication
     publish = True
@@ -237,14 +237,14 @@ if __name__ == "__main__":
         if counts == 0:
             # loop until interrupted
             publish = True
-        elif count > counts:
-            publish = False
-            print("Stop publication of results.")
-            disconnect_future = mqtt_connection.disconnect()
-            disconnect_future.result()
-            print("Connection disconnected - Goodbye!")
-            break
-            
+#         elif count > counts:
+#             publish = False
+#             print("Stop publication of results.")
+#             disconnect_future = mqtt_connection.disconnect()
+#             disconnect_future.result()
+#             print("Connection disconnected - Goodbye!")
+#             break
+#             
         # Create message payload
         pm_sensor_result = pm_sensor.get_measurement()
         c02_sensor_result = co2_sensor.get_measurement()
