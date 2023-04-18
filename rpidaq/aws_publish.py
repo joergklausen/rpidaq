@@ -244,6 +244,27 @@ def main():
             }
         }
 
+        # persist data in file
+        dte = time.strftime("%Y%m%d", time.gmtime())
+        if pm_sensor:
+            with open(f"{os.path.expanduser(cfg['data'])}/sps30-{dte}.json", "at") as fh:
+                fh.write(f"{pm_sensor_result['timestamp']}")
+                fh.write(f",{pm_sensor_result['mass_density']['pm1.0']}")
+                fh.write(f",{pm_sensor_result['mass_density']['pm2.5']}")
+                fh.write(f",{pm_sensor_result['mass_density']['pm4.0']}")
+                fh.write(f",{pm_sensor_result['mass_density']['pm10']}")
+                fh.write(f",{pm_sensor_result['particle_count']['pm0.5']}")
+                fh.write(f",{pm_sensor_result['particle_count']['pm1.0']}")
+                fh.write(f",{pm_sensor_result['particle_count']['pm2.5']}")
+                fh.write(f",{pm_sensor_result['particle_count']['pm4.0']}")
+                fh.write(f",{pm_sensor_result['particle_count']['pm10']}\n")
+        if co2_sensor:
+            with open(f"{os.path.expanduser(cfg['data'])}/scd30-{dte}.json", "at") as fh:
+                fh.write(f"{co2_sensor_result['timestamp']}")
+                fh.write(f",{co2_sensor_result['CO2']}")
+                fh.write(f",{co2_sensor_result['T']}")
+                fh.write(f",{co2_sensor_result['RH']}\n")
+
         # Don't send bad messages!
 #         if payload["data"]["temp"] is not None \
 #                 and payload["data"]["humidity"] is not None \
