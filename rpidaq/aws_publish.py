@@ -2,14 +2,10 @@ import os
 import argparse
 import logging
 import json
-# import sys
-# import threading
 import time
 import random
 import yaml
 
-# from awscrt import io, mqtt, auth, http, exceptions
-# from awsiot import mqtt_connection_builder
 from common import aws
 from getmac import get_mac_address as gma
 from sps30.sps30 import SPS30
@@ -18,11 +14,6 @@ from scd30.scd30 import SCD30
 # modified from example provided by Gary A. Stafford
 # MQTT connection code is modified version of aws-iot-device-sdk-python-v2 sample:
 # https://github.com/aws/aws-iot-device-sdk-python-v2/blob/master/samples/pubsub.py
-
-# # Global Variables
-# count: int = 0  # from args
-# received_count: int = 0
-# received_all_event = threading.Event()
 
 
 def get_rndnum():
@@ -60,54 +51,6 @@ def parse_args(cfg):
                         help="IoT event message frequency")
     args = parser.parse_args()
     return parser, args
-
-
-# # Callback when connection is accidentally lost.
-# def on_connection_interrupted(connection, error, **kwargs):
-#     msg = f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} Connection interrupted. error: {error}"
-#     logging.error(msg)
-#     print(msg)
-
-
-# # Callback when an interrupted connection is re-established.
-# def on_connection_resumed(connection, return_code, session_present, **kwargs):
-#     msg = f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} Connection resumed. return_code: {return_code} session_present: {session_present}"
-#     logging.info(msg)
-#     print(msg)
-
-#     if return_code == mqtt.ConnectReturnCode.ACCEPTED and not session_present:
-#         msg = "Session did not persist. Resubscribing to existing topics..."
-#         logging.warning(msg)
-#         print(msg)
-#         resubscribe_future, _ = connection.resubscribe_existing_topics()
-
-#         # Cannot synchronously wait for resubscribe result because we're on the connection's event-loop thread,
-#         # evaluate result with a callback instead.
-#         resubscribe_future.add_done_callback(on_resubscribe_complete)
-
-
-# def on_resubscribe_complete(resubscribe_future):
-#     resubscribe_results = resubscribe_future.result()
-#     msg = f"Resubscribe results: {resubscribe_results}"
-#     logging.info(msg)
-#     print(msg)
-
-#     for topic, qos in resubscribe_results['topics']:
-#         if qos is None:
-#             msg = f"Server rejected resubscribe to topic: {topic}"
-#             logging.warning(msg)
-#             sys.exit(msg)
-
-
-# # Callback when the subscribed topic receives a message
-# def on_message_received(topic, payload, **kwargs):
-#     msg = f"Received message from topic '{topic}': {payload}"
-#     logging.info(msg)
-#     print(msg)
-#     global received_count
-#     received_count += 1
-#     if received_count == count:
-#         received_all_event.set()
 
 
 def main():
@@ -187,81 +130,72 @@ def main():
     print("Connected!")
 
     while True:
-        # Create message payload
-        pm_sensor_result = pm_sensor.get_measurement()
-        co2_sensor_result = co2_sensor.get_measurement()
-
-        # persist data in file
         dte = time.strftime("%Y%m%d", time.gmtime())
+
+        # if sensor is configured:
+        #     retrieve measurement
+        #     persist data in file
+        #     create mqtt payload and publish
         if pm_sensor:
-            with open(f"{os.path.expanduser(cfg['data'])}/sps30-{dte}.csv", "at") as fh:
-                fh.write(f"{pm_sensor_result['timestamp']}")
-                fh.write(f",{pm_sensor_result['mass_density']['pm1.0']}")
-                fh.write(f",{pm_sensor_result['mass_density']['pm2.5']}")
-                fh.write(f",{pm_sensor_result['mass_density']['pm4.0']}")
-                fh.write(f",{pm_sensor_result['mass_density']['pm10']}")
-                fh.write(f",{pm_sensor_result['particle_count']['pm0.5']}")
-                fh.write(f",{pm_sensor_result['particle_count']['pm1.0']}")
-                fh.write(f",{pm_sensor_result['particle_count']['pm2.5']}")
-                fh.write(f",{pm_sensor_result['particle_count']['pm4.0']}")
-                fh.write(f",{pm_sensor_result['particle_count']['pm10']}\n")
-        if co2_sensor:
-            with open(f"{os.path.expanduser(cfg['data'])}/scd30-{dte}.csv", "at") as fh:
-                fh.write(f"{co2_sensor_result['timestamp']}")
-                fh.write(f",{co2_sensor_result['CO2']}")
-                fh.write(f",{co2_sensor_result['T']}")
-                fh.write(f",{co2_sensor_result['RH']}\n")
+            pm_sensor_result = pm_sensor.get_measurement()
 
-        payload_pm_sensor = {
-            "device_id": gma(),
-            "ts": time.time(),
-            "data": {
-                "dtm": pm_sensor_result['timestamp'],
-                "mass_density_pm1.0": pm_sensor_result['mass_density']['pm1.0'],
-                "mass_density_pm2.5": pm_sensor_result['mass_density']['pm2.5'],
-                "mass_density_pm4.0": pm_sensor_result['mass_density']['pm4.0'],
-                "mass_density_pm10": pm_sensor_result['mass_density']['pm10'],
-                "particle_count_pm0.5": pm_sensor_result['particle_count']['pm0.5'],
-                "particle_count_pm1.0":pm_sensor_result['particle_count']['pm1.0'],
-                "particle_count_pm2.5":pm_sensor_result['particle_count']['pm2.5'],
-                "particle_count_pm4.0":pm_sensor_result['particle_count']['pm4.0'],
-                "particle_count_pm10":pm_sensor_result['particle_count']['pm10'],
-            }
-        }
+            if pm_sensor_result['timestamp'] is not None:
+                with open(f"{os.path.expanduser(cfg['data'])}/sps30-{dte}.csv", "at") as fh:
+                    fh.write(f"{pm_sensor_result['timestamp']}")
+                    fh.write(f",{pm_sensor_result['mass_density']['pm1.0']}")
+                    fh.write(f",{pm_sensor_result['mass_density']['pm2.5']}")
+                    fh.write(f",{pm_sensor_result['mass_density']['pm4.0']}")
+                    fh.write(f",{pm_sensor_result['mass_density']['pm10']}")
+                    fh.write(f",{pm_sensor_result['particle_count']['pm0.5']}")
+                    fh.write(f",{pm_sensor_result['particle_count']['pm1.0']}")
+                    fh.write(f",{pm_sensor_result['particle_count']['pm2.5']}")
+                    fh.write(f",{pm_sensor_result['particle_count']['pm4.0']}")
+                    fh.write(f",{pm_sensor_result['particle_count']['pm10']}\n")
 
-        payload_co2_sensor = {
-            "device_id": gma(),
-            "ts": time.time(),
-            "data": {
-                "dtm": co2_sensor_result['timestamp'],
-                "CO2": co2_sensor_result['CO2'],
-                "T": co2_sensor_result['T'],
-                "RH": co2_sensor_result['RH']
-            }
-        }
-
-        if payload_pm_sensor["data"]["dtm"] is not None:            # Publish Message
-            aws.publish_message(payload=payload_pm_sensor)
-        else:
-            print("pm_sensor failure ... retrying ...")
-
-        if payload_co2_sensor["data"]["dtm"] is not None:            # Publish Message
-            message_json = json.dumps(payload_co2_sensor, sort_keys=False, indent=None, separators=(',', ':'))
-
-            try:
-                mqtt_connection.publish(
-                    topic=args.topic,
-                    payload=message_json,
-                    qos=aws.mqtt.QoS.AT_LEAST_ONCE)
-                print(f"Message {message_json} published.")
-            except aws.mqtt.SubscribeError as err:
-                print(f".SubscribeError: {err}")
-            except aws.exceptions.AwsCrtError as err:
-                print(f"AwsCrtError: {err}")
+                payload_pm_sensor = {
+                    "device_id": gma(),
+                    "ts": time.time(),
+                    "data": {
+                        "dtm": pm_sensor_result['timestamp'],
+                        "mass_density_pm1.0": pm_sensor_result['mass_density']['pm1.0'],
+                        "mass_density_pm2.5": pm_sensor_result['mass_density']['pm2.5'],
+                        "mass_density_pm4.0": pm_sensor_result['mass_density']['pm4.0'],
+                        "mass_density_pm10": pm_sensor_result['mass_density']['pm10'],
+                        "particle_count_pm0.5": pm_sensor_result['particle_count']['pm0.5'],
+                        "particle_count_pm1.0":pm_sensor_result['particle_count']['pm1.0'],
+                        "particle_count_pm2.5":pm_sensor_result['particle_count']['pm2.5'],
+                        "particle_count_pm4.0":pm_sensor_result['particle_count']['pm4.0'],
+                        "particle_count_pm10":pm_sensor_result['particle_count']['pm10'],
+                    }
+                }
+                aws.publish_message(mqtt_connection, args, payload=payload_pm_sensor)
             else:
-                time.sleep(args.frequency)
-        else:
-            print("pm_sensor failure ... retrying ...")
+                print("pm_sensor failure ... retrying ...")
+        
+        if co2_sensor:
+            co2_sensor_result = co2_sensor.get_measurement()
+
+            if co2_sensor_result['timestamp'] is not None:
+                with open(f"{os.path.expanduser(cfg['data'])}/scd30-{dte}.csv", "at") as fh:
+                    fh.write(f"{co2_sensor_result['timestamp']}")
+                    fh.write(f",{co2_sensor_result['CO2']}")
+                    fh.write(f",{co2_sensor_result['T']}")
+                    fh.write(f",{co2_sensor_result['RH']}\n")
+
+
+                payload_co2_sensor = {
+                    "device_id": gma(),
+                    "ts": time.time(),
+                    "data": {
+                        "dtm": co2_sensor_result['timestamp'],
+                        "CO2": co2_sensor_result['CO2'],
+                        "T": co2_sensor_result['T'],
+                        "RH": co2_sensor_result['RH']
+                    }
+                }
+                aws.publish_message(mqtt_connection, args, payload=payload_co2_sensor)
+            else:
+                print("co2_sensor failure ... retrying ...")
 
 
 if __name__ == "__main__":

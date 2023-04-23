@@ -3,7 +3,7 @@ import logging
 import sys
 import threading
 import time
-from awscrt import mqtt, auth, http, exceptions
+from awscrt import io, mqtt, auth, http, exceptions
 from awsiot import mqtt_connection_builder
 
 # Global Variables

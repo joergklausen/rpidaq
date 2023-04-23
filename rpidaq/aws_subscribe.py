@@ -3,13 +3,9 @@ import os
 import argparse
 import logging
 import json
-# import sys
-# import threading
 import time
 import yaml
 
-# from awscrt import io, mqtt, auth, http, exceptions
-# from awsiot import mqtt_connection_builder
 from common import aws
 from getmac import get_mac_address as gma
 
@@ -124,5 +120,3 @@ def main():
 # %%
 if __name__ == "__main__":
     main()
-#     sys.exit(main())
-# %%
