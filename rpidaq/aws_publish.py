@@ -71,6 +71,9 @@ def main():
     # set log level
     aws.io.init_logging(getattr(aws.io.LogLevel, args.verbosity), 'stderr')
 
+    # configure logging
+    logging.basicConfig(level=cfg["loglevel"], format='%(asctime)s %(message)s')
+
     # Print MAC address
     msg = f"MAC address of publishing device: {gma()}"
     logging.info(msg)

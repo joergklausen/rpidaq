@@ -49,21 +49,15 @@ def set_mqtt_connection(args, client_bootstrap):
 
 # Callback when connection is accidentally lost.
 def on_connection_interrupted(connection, error, **kwargs):
-    msg = f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} Connection interrupted. error: {error}"
-    logging.error(msg)
-    print(msg)
+    logging.error(f"Connection interrupted. error: {error}")
 
 
 # Callback when an interrupted connection is re-established.
 def on_connection_resumed(connection, return_code, session_present, **kwargs):
-    msg = f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} Connection resumed. return_code: {return_code} session_present: {session_present}"
-    logging.info(msg)
-    print(msg)
+    logging.info(f"Connection resumed. return_code: {return_code} session_present: {session_present}")
 
     if return_code == mqtt.ConnectReturnCode.ACCEPTED and not session_present:
-        msg = f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} Session did not persist. Resubscribing to existing topics..."
-        logging.warning(msg)
-        print(msg)
+        logging.warning(f"Session did not persist. Resubscribing to existing topics...")
         resubscribe_future, _ = connection.resubscribe_existing_topics()
 
         # Cannot synchronously wait for resubscribe result because we're on the connection's event-loop thread,
@@ -73,22 +67,16 @@ def on_connection_resumed(connection, return_code, session_present, **kwargs):
 
 def on_resubscribe_complete(resubscribe_future):
     resubscribe_results = resubscribe_future.result()
-    msg = f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} Resubscribe results: {resubscribe_results}"
-    logging.info(msg)
-    print(msg)
+    logging.info(f"Resubscribe results: {resubscribe_results}")
 
     for topic, qos in resubscribe_results['topics']:
         if qos is None:
-            msg = f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} Server rejected resubscribe to topic: {topic}"
-            logging.warning(msg)
-            sys.exit(msg)
+            logging.warning(f"Server rejected resubscribe to topic: {topic}")
 
 
 # Callback when the subscribed topic receives a message
 def on_message_received(topic, payload, **kwargs):
-    msg = f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} Received message from topic '{topic}': {payload}"
-    logging.info(msg)
-    print(msg)
+    logging.info(f"Received message from topic '{topic}': {payload}")
     global received_count
     received_count += 1
     if received_count == count:
@@ -102,16 +90,11 @@ def publish_message(mqtt_connection, args, payload:str):
             topic=args.topic,
             payload=message_json,
             qos=mqtt.QoS.AT_LEAST_ONCE)
-        msg = f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} Message {message_json} published."
-        logging.info(msg)
-        print(msg)
+        logging.info(f"Message {message_json} published.")
+
     except mqtt.SubscribeError as err:
-        msg = f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} .SubscribeError: {err}"
-        logging.error(msg)
-        print(msg)
+        logging.error(f".SubscribeError: {err}")
     except exceptions.AwsCrtError as err:
-        msg = f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} AwsCrtError: {err}"
-        logging.error(msg)
-        print(msg)
+        logging.error(f"AwsCrtError: {err}")
     else:
         time.sleep(args.frequency)

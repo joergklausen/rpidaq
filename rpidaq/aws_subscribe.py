@@ -2,8 +2,8 @@
 import os
 import argparse
 import logging
-import json
-import time
+# import json
+# import time
 import yaml
 
 from common import aws
@@ -65,10 +65,11 @@ def main():
     # set log level
     aws.io.init_logging(getattr(aws.io.LogLevel, args.verbosity), 'stderr')
 
+    # configure logging
+    logging.basicConfig(level=cfg["loglevel"], format='%(asctime)s %(message)s')
+
     # Print MAC address
-    msg = f"MAC address of subscribing device: {gma()}"
-    logging.info(msg)
-    print(msg)
+    logging.info(f"MAC address of subscribing device: {gma()}")
 
 
     # spin up resources
@@ -78,30 +79,21 @@ def main():
 
     # set MQTT connection
     mqtt_connection = aws.set_mqtt_connection(args, client_bootstrap)
-    msg = f"Connecting to '{args.endpoint}' with client ID '{args.client_id}' ..."
-    logging.info(msg)
-    print(msg)
-
     connect_future = mqtt_connection.connect()
+    logging.info(f"Connecting to '{args.endpoint}' with client ID '{args.client_id}' ...")
 
     # Future.result() waits until a result is available
-    connect_future.result()
-    print(connect_future.result())
-    logging.info("Connected!")
-    print("Connected!")
+    result = connect_future.result()
+    logging.info(f"Connected: {result}")
 
     # Subscribe (this will pull in messages from other devices)
-    msg = f"Subscribing to topic '{args.topic}' ..."
-    logging.info(msg)
-    print(msg)
+    logging.info(f"Subscribing to topic '{args.topic}' ...")
     subscribe_future, packet_id = mqtt_connection.subscribe(
-        topic=args.topic,
+        topic="#",  # args.topic
         qos=aws.mqtt.QoS.AT_LEAST_ONCE,
         callback=aws.on_message_received)
     subscribe_result = subscribe_future.result()
-    msg = f"Subscribed with {str(subscribe_result['qos'])}"
-    logging.info(msg)
-    print(msg)
+    logging.info(f"Subscribed with {str(subscribe_result['qos'])}")
 
     # # Wait for all messages to be received.
     # # This waits forever if count was set to 0.
