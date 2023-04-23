@@ -95,3 +95,5 @@ SPS30 Pin|GPIO Pin|Description
   "timestamp": 1678644087
 }
 
+## Setup DDNS
+https://www.sdn46.com/setting-up-duckdns-on-your-raspberry-pi/
