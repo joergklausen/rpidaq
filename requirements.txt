@@ -1,1 +1,5 @@
 sensirion-i2c-driver
+awscrt
+awsiotsdk
+getmac
+PyYaml

@@ -1,15 +1,16 @@
 import os
 import argparse
+import logging
 import json
-import sys
-import threading
+# import sys
+# import threading
 import time
 import random
 import yaml
 
-# import adafruit_dht
-from awscrt import io, mqtt, auth, http, exceptions
-from awsiot import mqtt_connection_builder
+# from awscrt import io, mqtt, auth, http, exceptions
+# from awsiot import mqtt_connection_builder
+from common import aws
 from getmac import get_mac_address as gma
 from sps30.sps30 import SPS30
 from scd30.scd30 import SCD30
@@ -18,46 +19,11 @@ from scd30.scd30 import SCD30
 # MQTT connection code is modified version of aws-iot-device-sdk-python-v2 sample:
 # https://github.com/aws/aws-iot-device-sdk-python-v2/blob/master/samples/pubsub.py
 
-# Global Variables
-count: int = 0  # from args
-received_count: int = 0
-received_all_event = threading.Event()
+# # Global Variables
+# count: int = 0  # from args
+# received_count: int = 0
+# received_all_event = threading.Event()
 
-
-def set_mqtt_connection(args, client_bootstrap):
-    if args.use_websocket:
-        proxy_options = None
-        if args.proxy_host:
-            proxy_options = http.HttpProxyOptions(host_name=args.proxy_host, port=args.proxy_port)
-
-        credentials_provider = auth.AwsCredentialsProvider.new_default_chain(client_bootstrap)
-        mqtt_connection = mqtt_connection_builder.websockets_with_default_aws_signing(
-            endpoint=args.endpoint,
-            client_bootstrap=client_bootstrap,
-            region=args.signing_region,
-            credentials_provider=credentials_provider,
-            websocket_proxy_options=proxy_options,
-            ca_filepath=args.root_ca,
-            on_connection_interrupted=on_connection_interrupted,
-            on_connection_resumed=on_connection_resumed,
-            client_id=args.client_id,
-            clean_session=False,
-            keep_alive_secs=6)
-
-    else:
-        mqtt_connection = mqtt_connection_builder.mtls_from_path(
-            endpoint=args.endpoint,
-            cert_filepath=args.cert,
-            pri_key_filepath=args.key,
-            client_bootstrap=client_bootstrap,
-            ca_filepath=args.root_ca,
-            on_connection_interrupted=on_connection_interrupted,
-            on_connection_resumed=on_connection_resumed,
-            client_id=args.client_id,
-            clean_session=False,
-            keep_alive_secs=6)
-
-    return mqtt_connection
 
 def get_rndnum():
     return {"rndnum": random.random() }
@@ -66,8 +32,6 @@ def get_rndnum():
 # Read in command-line parameters
 def parse_args(cfg):
     parser = argparse.ArgumentParser(description="Send and receive messages through and MQTT connection.")
-#    parser.add_argument('--endpoint', required=True, help="Your AWS IoT custom endpoint, not including a port. " +
-#                                                           "Ex: \"abcd123456wxyz-ats.iot.us-east-1.amazonaws.com\"")
     parser.add_argument('--endpoint', default=cfg["aws"]["endpoint"], help="Your AWS IoT custom endpoint, not including a port. " +
                                                           "Ex: \"abcd123456wxyz-ats.iot.us-east-1.amazonaws.com\"")
     parser.add_argument('--cert', default=cfg["aws"]["cert"], help="File path to your client certificate, in PEM format.")
@@ -90,49 +54,60 @@ def parse_args(cfg):
     parser.add_argument('--proxy-host', help="Hostname for proxy to connect to. Note: if you use this feature, " +
                                              "you will likely need to set --root-ca to the ca for your proxy.")
     parser.add_argument('--proxy-port', type=int, default=8080, help="Port for proxy to connect to.")
-    parser.add_argument('--verbosity', choices=[x.name for x in io.LogLevel], default=io.LogLevel.NoLogs.name,
+    parser.add_argument('--verbosity', choices=[x.name for x in aws.io.LogLevel], default=aws.io.LogLevel.NoLogs.name,
                         help='Logging level')
     parser.add_argument("--frequency", default=cfg["aws"]["frequency"], action="store", dest="frequency", type=int,
                         help="IoT event message frequency")
-
     args = parser.parse_args()
     return parser, args
 
 
-# Callback when connection is accidentally lost.
-def on_connection_interrupted(connection, error, **kwargs):
-    print(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} Connection interrupted. error: {error}")
+# # Callback when connection is accidentally lost.
+# def on_connection_interrupted(connection, error, **kwargs):
+#     msg = f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} Connection interrupted. error: {error}"
+#     logging.error(msg)
+#     print(msg)
 
 
-# Callback when an interrupted connection is re-established.
-def on_connection_resumed(connection, return_code, session_present, **kwargs):
-    print(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} Connection resumed. return_code: {return_code} session_present: {session_present}")
+# # Callback when an interrupted connection is re-established.
+# def on_connection_resumed(connection, return_code, session_present, **kwargs):
+#     msg = f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} Connection resumed. return_code: {return_code} session_present: {session_present}"
+#     logging.info(msg)
+#     print(msg)
 
-    if return_code == mqtt.ConnectReturnCode.ACCEPTED and not session_present:
-        print("Session did not persist. Resubscribing to existing topics...")
-        resubscribe_future, _ = connection.resubscribe_existing_topics()
+#     if return_code == mqtt.ConnectReturnCode.ACCEPTED and not session_present:
+#         msg = "Session did not persist. Resubscribing to existing topics..."
+#         logging.warning(msg)
+#         print(msg)
+#         resubscribe_future, _ = connection.resubscribe_existing_topics()
 
-        # Cannot synchronously wait for resubscribe result because we're on the connection's event-loop thread,
-        # evaluate result with a callback instead.
-        resubscribe_future.add_done_callback(on_resubscribe_complete)
-
-
-def on_resubscribe_complete(resubscribe_future):
-    resubscribe_results = resubscribe_future.result()
-    print("Resubscribe results: {}".format(resubscribe_results))
-
-    for topic, qos in resubscribe_results['topics']:
-        if qos is None:
-            sys.exit("Server rejected resubscribe to topic: {}".format(topic))
+#         # Cannot synchronously wait for resubscribe result because we're on the connection's event-loop thread,
+#         # evaluate result with a callback instead.
+#         resubscribe_future.add_done_callback(on_resubscribe_complete)
 
 
-# Callback when the subscribed topic receives a message
-def on_message_received(topic, payload, **kwargs):
-    print("Received message from topic '{}': {}".format(topic, payload))
-    global received_count
-    received_count += 1
-    if received_count == count:
-        received_all_event.set()
+# def on_resubscribe_complete(resubscribe_future):
+#     resubscribe_results = resubscribe_future.result()
+#     msg = f"Resubscribe results: {resubscribe_results}"
+#     logging.info(msg)
+#     print(msg)
+
+#     for topic, qos in resubscribe_results['topics']:
+#         if qos is None:
+#             msg = f"Server rejected resubscribe to topic: {topic}"
+#             logging.warning(msg)
+#             sys.exit(msg)
+
+
+# # Callback when the subscribed topic receives a message
+# def on_message_received(topic, payload, **kwargs):
+#     msg = f"Received message from topic '{topic}': {payload}"
+#     logging.info(msg)
+#     print(msg)
+#     global received_count
+#     received_count += 1
+#     if received_count == count:
+#         received_all_event.set()
 
 
 def main():
@@ -151,10 +126,12 @@ def main():
     count = args.count
 
     # set log level
-    io.init_logging(getattr(io.LogLevel, args.verbosity), 'stderr')
+    aws.io.init_logging(getattr(aws.io.LogLevel, args.verbosity), 'stderr')
 
     # Print MAC address
-    print(gma())
+    msg = f"MAC address of publishing device: {gma()}"
+    logging.info(msg)
+    print(msg)
 
     # initialize sensors
     pm_sensor = None
@@ -167,6 +144,7 @@ def main():
             "Status register": pm_sensor.get_status_register(),
             "Auto cleaning interval": pm_sensor.get_auto_cleaning_interval()
             }
+        logging.info(pm_sensor_cfg)
         print(pm_sensor_cfg)
         with open(os.path.expanduser(cfg['data']) + "/sps30.json", "wt") as fh:
             fh.write(json.dumps(pm_sensor_cfg))
@@ -181,6 +159,7 @@ def main():
             "Product type": "SCD30",
             "Firmware version": co2_sensor.get_firmware_version()
             }
+        logging.info(co2_sensor_cfg)
         print(co2_sensor_cfg)
         with open(os.path.expanduser(cfg['data']) + "/scd30.json", "wt") as fh:
             fh.write(json.dumps(co2_sensor_cfg))
@@ -189,65 +168,33 @@ def main():
         time.sleep(1)
 
     # spin up resources
-    event_loop_group = io.EventLoopGroup(1)
-    host_resolver = io.DefaultHostResolver(event_loop_group)
-    client_bootstrap = io.ClientBootstrap(event_loop_group, host_resolver)
+    event_loop_group = aws.io.EventLoopGroup(1)
+    host_resolver = aws.io.DefaultHostResolver(event_loop_group)
+    client_bootstrap = aws.io.ClientBootstrap(event_loop_group, host_resolver)
 
     # set MQTT connection
-    mqtt_connection = set_mqtt_connection(args, client_bootstrap)
-
-    print(f"Connecting to '{args.endpoint}' with client ID '{args.client_id}'...")
+    mqtt_connection = aws.set_mqtt_connection(args, client_bootstrap)
+    msg = f"Connecting to '{args.endpoint}' with client ID '{args.client_id}' ..."
+    logging.info(msg)
+    print(msg)
 
     connect_future = mqtt_connection.connect()
 
     # Future.result() waits until a result is available
     connect_future.result()
     print(connect_future.result())
+    logging.info("Connected!")
     print("Connected!")
-
-    # Subscribe (this will pull in messages down from other devices)
-#     print("Subscribing to topic '{}'...".format(args.topic))
-#     subscribe_future, packet_id = mqtt_connection.subscribe(
-#         topic=args.topic,
-#         qos=mqtt.QoS.AT_LEAST_ONCE,
-#         callback=on_message_received)
-#     subscribe_result = subscribe_future.result()
-#     print("Subscribed with {}".format(str(subscribe_result['qos'])))
 
     while True:
         # Create message payload
         pm_sensor_result = pm_sensor.get_measurement()
         co2_sensor_result = co2_sensor.get_measurement()
-#         print(f"scd30 returned: {co2_sensor_result}")
-#         payload_rndnum = get_rndnum()
-#         print(payload_rndnum)
-
-        payload = {
-            "device_id": gma(),
-            "ts": time.time(),
-            "data": {
-#                 "rndnum": payload_rndnum["rndnum"],
-                "dtm_pm_sensor": pm_sensor_result['timestamp'],
-                "mass_density_pm1.0": pm_sensor_result['mass_density']['pm1.0'],
-                "mass_density_pm2.5": pm_sensor_result['mass_density']['pm2.5'],
-                "mass_density_pm4.0": pm_sensor_result['mass_density']['pm4.0'],
-                "mass_density_pm10": pm_sensor_result['mass_density']['pm10'],
-                "particle_count_pm0.5": pm_sensor_result['particle_count']['pm0.5'],
-                "particle_count_pm1.0":pm_sensor_result['particle_count']['pm1.0'],
-                "particle_count_pm2.5":pm_sensor_result['particle_count']['pm2.5'],
-                "particle_count_pm4.0":pm_sensor_result['particle_count']['pm4.0'],
-                "particle_count_pm10":pm_sensor_result['particle_count']['pm10'],
-                "dtm_co2_sensor": co2_sensor_result['timestamp'],
-                "CO2": co2_sensor_result['CO2'],
-                "T": co2_sensor_result['T'],
-                "RH": co2_sensor_result['RH']
-            }
-        }
 
         # persist data in file
         dte = time.strftime("%Y%m%d", time.gmtime())
         if pm_sensor:
-            with open(f"{os.path.expanduser(cfg['data'])}/sps30-{dte}.json", "at") as fh:
+            with open(f"{os.path.expanduser(cfg['data'])}/sps30-{dte}.csv", "at") as fh:
                 fh.write(f"{pm_sensor_result['timestamp']}")
                 fh.write(f",{pm_sensor_result['mass_density']['pm1.0']}")
                 fh.write(f",{pm_sensor_result['mass_density']['pm2.5']}")
@@ -259,35 +206,63 @@ def main():
                 fh.write(f",{pm_sensor_result['particle_count']['pm4.0']}")
                 fh.write(f",{pm_sensor_result['particle_count']['pm10']}\n")
         if co2_sensor:
-            with open(f"{os.path.expanduser(cfg['data'])}/scd30-{dte}.json", "at") as fh:
+            with open(f"{os.path.expanduser(cfg['data'])}/scd30-{dte}.csv", "at") as fh:
                 fh.write(f"{co2_sensor_result['timestamp']}")
                 fh.write(f",{co2_sensor_result['CO2']}")
                 fh.write(f",{co2_sensor_result['T']}")
                 fh.write(f",{co2_sensor_result['RH']}\n")
 
-        # Don't send bad messages!
-#         if payload["data"]["temp"] is not None \
-#                 and payload["data"]["humidity"] is not None \
-#                 and payload["data"]["co"] is not None:
-        if payload["data"]["dtm_pm_sensor"] is not None:            # Publish Message
-            message_json = json.dumps(payload, sort_keys=True, indent=None, separators=(',', ':'))
+        payload_pm_sensor = {
+            "device_id": gma(),
+            "ts": time.time(),
+            "data": {
+                "dtm": pm_sensor_result['timestamp'],
+                "mass_density_pm1.0": pm_sensor_result['mass_density']['pm1.0'],
+                "mass_density_pm2.5": pm_sensor_result['mass_density']['pm2.5'],
+                "mass_density_pm4.0": pm_sensor_result['mass_density']['pm4.0'],
+                "mass_density_pm10": pm_sensor_result['mass_density']['pm10'],
+                "particle_count_pm0.5": pm_sensor_result['particle_count']['pm0.5'],
+                "particle_count_pm1.0":pm_sensor_result['particle_count']['pm1.0'],
+                "particle_count_pm2.5":pm_sensor_result['particle_count']['pm2.5'],
+                "particle_count_pm4.0":pm_sensor_result['particle_count']['pm4.0'],
+                "particle_count_pm10":pm_sensor_result['particle_count']['pm10'],
+            }
+        }
+
+        payload_co2_sensor = {
+            "device_id": gma(),
+            "ts": time.time(),
+            "data": {
+                "dtm": co2_sensor_result['timestamp'],
+                "CO2": co2_sensor_result['CO2'],
+                "T": co2_sensor_result['T'],
+                "RH": co2_sensor_result['RH']
+            }
+        }
+
+        if payload_pm_sensor["data"]["dtm"] is not None:            # Publish Message
+            aws.publish_message(payload=payload_pm_sensor)
+        else:
+            print("pm_sensor failure ... retrying ...")
+
+        if payload_co2_sensor["data"]["dtm"] is not None:            # Publish Message
+            message_json = json.dumps(payload_co2_sensor, sort_keys=False, indent=None, separators=(',', ':'))
 
             try:
                 mqtt_connection.publish(
                     topic=args.topic,
                     payload=message_json,
-                    qos=mqtt.QoS.AT_LEAST_ONCE)
-                print(f"message {message_json} published.")
-            except mqtt.SubscribeError as err:
-                print(".SubscribeError: {}".format(err))
-            except exceptions.AwsCrtError as err:
-                print("AwsCrtError: {}".format(err))
+                    qos=aws.mqtt.QoS.AT_LEAST_ONCE)
+                print(f"Message {message_json} published.")
+            except aws.mqtt.SubscribeError as err:
+                print(f".SubscribeError: {err}")
+            except aws.exceptions.AwsCrtError as err:
+                print(f"AwsCrtError: {err}")
             else:
                 time.sleep(args.frequency)
         else:
-            print("sensor failure...retrying...")
+            print("pm_sensor failure ... retrying ...")
 
 
 if __name__ == "__main__":
     main()
-#     sys.exit(main())
